@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LMS Dashboard with Duration Feature</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #e0e7ff; }
+        /* Hide dashboards initially */
+        #teacher-dashboard, #student-dashboard { display: none; }
+        .modal-bg { background-color: rgba(0,0,0,0.6); }
+        .sidebar { background-color: #1e3a8a; }
+        .nav-link { 
+            color: #bfdbfe; 
+            padding: 10px 16px; 
+            border-radius: 8px; 
+            display: flex; 
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .nav-link:hover { background-color: #1c4587; color: #ffffff; }
+        /* Active state for navigation links */
+        .nav-link.active { background-color: #3b82f6; color: #ffffff; font-weight: 600; }
+        .tab-button.active { border-color: #3b82f6; color: #3b82f6; font-weight: 600; }
+        .tab-button:not(.active) { color: #6b7280; }
+    </style>
+</head>
+<body class="min-h-screen">
+
+<div id="login-page" class="flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md bg-white p-8 md:p-10 shadow-2xl rounded-xl">
+        <h1 id="form-title" class="text-3xl font-extrabold text-gray-800 mb-6 text-center">LMS Portal Sign In</h1>
+        
+        <div class="flex bg-gray-100 p-1 rounded-lg mb-8">
+            <button id="student-btn" onclick="setRole('Student')" class="flex-1 py-3 text-sm font-semibold rounded-lg bg-blue-600 text-white shadow-md">Student</button>
+            <button id="teacher-btn" onclick="setRole('Teacher')" class="flex-1 py-3 text-sm font-semibold rounded-lg text-gray-700 hover:bg-gray-200">Teacher</button>
+        </div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <input type="email" id="email" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="you@mail.edu" />
+            </div>
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input type="password" id="password" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••" />
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-blue-700 transition">Login</button>
+        </form>
+        
+        <p class="mt-6 text-center text-sm text-gray-600">
+            Don't have an account? 
+            <a href="#" onclick="toggleModal('register-modal', true)" class="text-blue-600 font-semibold hover:text-blue-700">Register Here</a>
+        </p>
+
+        <div id="message-box" class="mt-6 text-center p-3 rounded-lg hidden"></div>
+    </div>
+</div>
+
+<div id="teacher-dashboard" class="flex min-h-screen">
+    <nav class="sidebar w-64 p-6 flex flex-col justify-between sticky top-0 h-screen">
+        <div>
+            <div class="text-2xl font-bold text-white mb-10">Teacher Portal</div>
+            <div class="space-y-3">
+                <a href="#" class="nav-link active" id="teacher-nav-courses" onclick="switchTeacherView('courses')">
+                    <i data-lucide="book-open" class="w-5 h-5 mr-3"></i><span>Courses</span>
+                </a>
+                <a href="#" class="nav-link" id="teacher-nav-grading" onclick="switchTeacherView('grading')">
+                    <i data-lucide="tally-2" class="w-5 h-5 mr-3"></i><span>Grading Queue</span>
+                </a>
+            </div>
+        </div>
+        <div class="pt-6 border-t border-blue-800">
+            <span class="text-xs text-blue-300 mb-2 block" id="teacher-name"></span>
+            <button onclick="logout()" class="nav-link w-full justify-start text-red-300 hover:text-white hover:bg-red-700">
+                <i data-lucide="log-out" class="w-5 h-5 mr-3"></i><span>Logout</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 p-8 bg-gray-50">
+        <div id="teacher-view-courses" class="teacher-view">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl font-extrabold text-gray-800">Your Courses (<span id="course-count">0</span>)</h2>
+                <button onclick="toggleModal('add-course-modal', true)" class="flex items-center space-x-2 bg-blue-600 text-white py-2 px-4 rounded-lg shadow-lg hover:bg-blue-700">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i><span>Add New Course</span>
+                </button>
+            </div>
+            <div id="course-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div id="empty-state" class="hidden text-center py-20 bg-white border-2 border-dashed border-gray-300 rounded-xl mt-8">
+                <i data-lucide="book-open" class="w-12 h-12 mx-auto text-gray-400 mb-4"></i>
+                <p class="text-xl font-semibold text-gray-600">No courses added yet.</p>
+            </div>
+        </div>
+        
+        <div id="teacher-view-grading" class="teacher-view hidden">
+            <h2 class="text-3xl font-extrabold text-gray-800 mb-6">Grading Queue</h2>
+            <div id="grading-queue-container" class="space-y-4">
+                <p class="text-gray-500">Assignments ready for grading across all your courses will appear here.</p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="student-dashboard" class="flex min-h-screen">
+    <nav class="sidebar w-64 p-6 flex flex-col justify-between sticky top-0 h-screen">
+        <div>
+            <div class="text-2xl font-bold text-white mb-10">Student Portal</div>
+            <div class="space-y-3">
+                <a href="#" class="nav-link active" id="student-nav-enrollment" onclick="switchStudentView('enrollment')">
+                    <i data-lucide="graduation-cap" class="w-5 h-5 mr-3"></i><span>My Courses</span>
+                </a>
+                <a href="#" class="nav-link" id="student-nav-assignments" onclick="switchStudentView('assignments')">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 mr-3"></i><span>Assignments</span>
+                </a>
+            </div>
+        </div>
+        <div class="pt-6 border-t border-blue-800">
+            <span class="text-xs text-blue-300 mb-2 block" id="student-name"></span>
+            <button onclick="logout()" class="nav-link w-full justify-start text-red-300 hover:text-white hover:bg-red-700">
+                <i data-lucide="log-out" class="w-5 h-5 mr-3"></i><span>Logout</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 p-8 bg-gray-50">
+        <div id="student-view-enrollment" class="student-view">
+            <h2 class="text-3xl font-extrabold text-gray-800 mb-6">Enrollment & Grades</h2>
+            
+            <h3 class="text-2xl font-semibold text-gray-700 mb-4">My Enrolled Courses</h3>
+            <div id="enrolled-courses" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"></div>
+
+            <h3 class="text-2xl font-semibold text-gray-700 mb-4">Available Courses</h3>
+            <div id="available-courses" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <div id="student-view-assignments" class="student-view hidden">
+            <h2 class="text-3xl font-extrabold text-gray-800 mb-6">My Assignments</h2>
+            
+            <div id="overall-grade-card" class="mb-8"></div>
+            
+            <div id="student-assignments" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+    </main>
+</div>
+
+<!-- All Modals below -->
+
+<div id="register-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-md p-6 rounded-xl shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">New User Registration</h3>
+            <button onclick="toggleModal('register-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <form id="register-form" onsubmit="handleRegistration(event)">
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Email (Your ID)</label>
+                <input type="email" id="reg-email" required class="w-full px-4 py-3 border rounded-lg" placeholder="e.g., john@mail.edu" />
+            </div>
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input type="password" id="reg-password" required class="w-full px-4 py-3 border rounded-lg" placeholder="••••••••" />
+            </div>
+             <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+                <select id="reg-role" required class="w-full px-4 py-3 border rounded-lg">
+                    <option value="Student">Student</option>
+                    <option value="Teacher">Teacher</option>
+                </select>
+            </div>
+            <button class="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700">Register Account</button>
+            <p id="reg-message-box" class="mt-4 text-center text-sm p-3 rounded-lg bg-red-100 text-red-700 hidden"></p>
+        </form>
+    </div>
+</div>
+
+<div id="add-course-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-lg p-6 rounded-xl shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">Create New Course</h3>
+            <button onclick="toggleModal('add-course-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <form id="add-course-form" onsubmit="addCourse(event)">
+            <input id="course-title" placeholder="Course Title" required class="w-full mb-4 px-4 py-3 border rounded-lg" />
+            <!-- New: Input for Course Code -->
+            <input id="course-code" placeholder="Code (e.g., MTH101)" required class="w-full mb-4 px-4 py-3 border rounded-lg" />
+            <!-- New: Input for Course Duration -->
+            <input id="course-duration" placeholder="Duration (e.g., 16 weeks)" required class="w-full mb-4 px-4 py-3 border rounded-lg" />
+            <textarea id="course-description" rows="3" placeholder="Course Description" required class="w-full mb-6 px-4 py-3 border rounded-lg"></textarea>
+            <button class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700">Add Course</button>
+        </form>
+    </div>
+</div>
+
+<div id="add-assignment-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-lg p-6 rounded-xl shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">Add Assignment</h3>
+            <button onclick="toggleModal('add-assignment-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <form id="add-assignment-form" onsubmit="addAssignment(event)">
+            <input type="hidden" id="assign-course-id" />
+            <input id="assignment-title" placeholder="Assignment Title" required class="w-full mb-4 px-4 py-3 border rounded-lg" />
+            <textarea id="assignment-desc" rows="4" placeholder="Assignment Description" required class="w-full mb-6 px-4 py-3 border rounded-lg"></textarea>
+            <button class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700">Publish Assignment</button>
+        </form>
+    </div>
+</div>
+
+<div id="view-submissions-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-lg p-6 rounded-xl shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="submission-title" class="text-xl font-bold text-gray-800"></h3>
+            <button onclick="toggleModal('view-submissions-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <div id="submissions-list" class="space-y-4"></div>
+    </div>
+</div>
+
+<!-- Grade Submission Modal -->
+<div id="grade-submission-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-md p-6 rounded-xl shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">Grade Submission</h3>
+            <button onclick="toggleModal('grade-submission-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+            <p class="text-sm text-gray-700 font-semibold mb-2">Student: <span id="grade-student-email" class="font-normal text-blue-600"></span></p>
+            <p class="text-sm text-gray-700 font-semibold">Assignment: <span id="grade-assignment-title" class="font-normal"></span></p>
+            <p class="text-sm text-gray-700 font-semibold mt-2">Submitted File: <span id="grade-submitted-file" class="font-normal text-gray-500"></span></p>
+        </div>
+        
+        <div class="mb-4">
+            <h4 class="text-lg font-bold mb-2 text-gray-800">Submitted Content (Simulated File Data):</h4>
+            <p id="grade-submission-content" class="whitespace-pre-wrap text-sm border p-3 rounded-lg bg-gray-100 max-h-40 overflow-y-auto"></p>
+        </div>
+
+        <form id="grade-submission-form" onsubmit="handleGradeSubmission(event)">
+            <input type="hidden" id="grade-course-id" />
+            <input type="hidden" id="grade-assignment-id" />
+            <input type="hidden" id="grade-student-email-input" />
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Grade</label>
+                <select id="grade-select" required class="w-full px-4 py-3 border rounded-lg">
+                    <option value="" disabled selected>Select Grade</option>
+                    <option value="A+">A+</option><option value="A">A</option><option value="A-">A-</option>
+                    <option value="B+">B+</option><option value="B">B</option><option value="B-">B-</option>
+                    <option value="C+">C+</option><option value="C">C</option><option value="C-">C-</option>
+                    <option value="D+">D+</option><option value="D">D</option><option value="D-">D-</option>
+                    <option value="F">F</option>
+                </select>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
+                <textarea id="grade-feedback" rows="4" class="w-full px-4 py-3 border rounded-lg" placeholder="Enter constructive feedback here..."></textarea>
+            </div>
+            <button class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-bold">Save Grade</button>
+        </form>
+    </div>
+</div>
+
+<!-- View Assignment Details Modal with Materials Tab (Replaces old submit-assignment-modal) -->
+<div id="view-assignment-details-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-4xl p-8 rounded-xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-3xl font-bold text-gray-800" id="details-assign-title">Assignment Title</h3>
+            <button onclick="toggleModal('view-assignment-details-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-7 h-7"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+            <div class="mb-6 border-b border-gray-200">
+                <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" role="tablist">
+                    <li class="mr-2" role="presentation">
+                        <button id="tab-assignment" onclick="switchDetailTab('assignment')" class="inline-block p-4 border-b-2 rounded-t-lg tab-button active" type="button" role="tab" aria-controls="content-assignment" aria-selected="true">Assignment & Submission</button>
+                    </li>
+                    <li class="mr-2" role="presentation">
+                        <button id="tab-materials" onclick="switchDetailTab('materials')" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg tab-button hover:text-gray-600 hover:border-gray-300" type="button" role="tab" aria-controls="content-materials" aria-selected="false">Course Materials</button>
+                    </li>
+                </ul>
+            </div>
+
+            <div id="content-assignment" class="tab-content">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Left Column: Assignment Info & Grade -->
+                    <div class="space-y-4">
+                        <div class="p-5 bg-blue-50 rounded-lg">
+                            <h4 class="text-xl font-semibold text-gray-700 mb-2">Details</h4>
+                            <p class="text-sm font-medium text-blue-600 mb-2" id="details-course-info"></p>
+                            <p class="text-gray-600 text-sm whitespace-pre-wrap" id="details-assign-desc"></p>
+                        </div>
+                        
+                        <div id="details-grade-section" class="p-5 border rounded-lg shadow-sm">
+                            <!-- Grade and Feedback will be injected here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Right Column: Submission Form -->
+                    <div>
+                        <h4 class="text-xl font-semibold text-gray-700 mb-4">Submit Your Work</h4>
+                        <form id="details-submission-form" onsubmit="handleSubmission(event)">
+                            <input type="hidden" id="details-sub-course-id" />
+                            <input type="hidden" id="details-sub-assignment-id" />
+                            <input type="hidden" id="details-sub-file-name-storage" /> 
+
+                            <div class="mb-5">
+                                <label for="details-sub-file" class="block text-sm font-medium text-gray-700 mb-2">Attach File (Optional: Name Only)</label>
+                                <input type="file" id="details-sub-file" onchange="updateSubmissionFileName(this, 'details-current-file-display', 'details-sub-file-name-storage')" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                <p id="details-current-file-display" class="mt-2 text-sm text-gray-500">No file selected.</p>
+                            </div>
+
+                            <div class="mb-6">
+                                <label for="details-sub-content" class="block text-sm font-medium text-gray-700 mb-2">Submission Content (Required)</label>
+                                <textarea id="details-sub-content" rows="8" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Type or paste the contents of your file here."></textarea>
+                                <p class="text-xs text-gray-500 mt-1">This simulates the actual file content.</p>
+                            </div>
+                            
+                            <button class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-bold">
+                                <span id="details-sub-button-text">Submit Assignment</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-materials" class="tab-content hidden">
+                <h4 class="text-xl font-semibold text-gray-700 mb-4">Supporting Course Documents</h4>
+                <div id="details-materials-list" class="space-y-3">
+                    <!-- Materials list generated here -->
+                </div>
+                <p id="details-materials-empty" class="text-gray-500 text-sm p-3 bg-gray-100 rounded-lg border hidden mt-4">No supporting materials found for this course.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="manage-materials-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-2xl p-6 rounded-xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="materials-modal-title" class="text-2xl font-bold text-gray-800">Manage Materials</h3>
+            <button onclick="toggleModal('manage-materials-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        
+        <div class="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+            <h4 class="text-lg font-semibold text-gray-700 mb-3">Upload New Material</h4>
+            <form id="upload-material-form" onsubmit="handleMaterialUpload(event)">
+                <input type="hidden" id="material-course-id" />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input id="material-title" placeholder="Material Title (e.g., Lecture 1 Slides)" required class="w-full px-4 py-3 border rounded-lg" />
+                    <!-- File input is used here purely for the file name, as real file upload/storage is not implemented -->
+                    <input type="file" id="material-file" required class="w-full px-4 py-3 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                </div>
+                <button class="w-full mt-4 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-bold flex items-center justify-center space-x-2">
+                    <i data-lucide="upload-cloud" class="w-5 h-5"></i><span>Upload File</span>
+                </button>
+            </form>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto pr-2">
+            <h4 class="text-lg font-semibold text-gray-700 mb-3">Uploaded Materials</h4>
+            <div id="materials-list-teacher" class="space-y-3">
+                <!-- Materials list generated here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="view-materials-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-xl p-6 rounded-xl shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="view-materials-title" class="text-xl font-bold text-gray-800">Course Materials</h3>
+            <button onclick="toggleModal('view-materials-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <div id="materials-list-student" class="space-y-3">
+            <!-- Materials list generated here -->
+        </div>
+    </div>
+</div>
+
+<!-- NEW: View Roster Modal -->
+<div id="view-roster-modal" class="fixed inset-0 hidden items-center justify-center z-50 p-4 modal-bg">
+    <div class="bg-white w-full max-w-md p-6 rounded-xl shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 id="roster-modal-title" class="text-2xl font-bold text-gray-800">Course Roster</h3>
+            <button onclick="toggleModal('view-roster-modal', false)" class="text-gray-500 hover:text-gray-800">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p class="text-lg font-semibold text-gray-700">Total Enrolled Students: <span id="roster-count" class="font-extrabold text-blue-600">0</span></p>
+        </div>
+        <div id="roster-list" class="space-y-2">
+            <!-- Student list will be injected here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==== GLOBAL STATE & DATA STORE (MOCK) ====
+    let currentRole = 'Student';
+    let currentUser = null;
+    let currentTeacherView = 'courses'; 
+    let currentStudentView = 'enrollment'; 
+
+    // --- USER DATA (Mocked for demonstration) ---
+    let users = {
+        "teacher1@mail.edu": { password: "12345", role: "Teacher" },
+        "student1@mail.edu": { password: "12345", role: "Student" },
+        "student2@mail.edu": { password: "12345", role: "Student" },
+    };
+
+    // --- COURSE DATA (Updated with Duration) ---
+    let courses = [
+        { id: 1, title: "Calculus I", code: "MATH101", duration: "16 weeks", description: "Intro to single-variable calculus.", teacherEmail: "teacher1@mail.edu" },
+        { id: 2, title: "Web Design Basics", code: "CS105", duration: "12 weeks", description: "Fundamentals of HTML, CSS, and JavaScript.", teacherEmail: "teacher1@mail.edu" },
+    ];
+
+    // { courseId: [studentEmails...] }
+    let enrollments = {
+        1: ["student1@mail.edu", "student2@mail.edu"],
+        2: ["student1@mail.edu"] 
+    }; 
+
+    // Mock Assignments and Submissions (for Grading)
+    // Submissions: { studentEmail: { content: "...", grade: "A", feedback: "...", fileName: "..." } } 
+    let assignments = {
+        1: [ // MATH101
+            { id: 101, title: "Limit Theory Quiz", description: "First quiz on limits.", submissions: {
+                "student1@mail.edu": { content: "L'Hopital's rule example for problem set A, question 3.", grade: "A", feedback: "Excellent use of L'Hopital's rule. Perfectly done!", fileName: "LimitQuiz_S1.pdf" },
+                "student2@mail.edu": { content: "Submitted incorrect method, but the attempt was thoughtful.", grade: "C", feedback: "The method was incorrect. Review section 3.2 on limit definitions for the retake.", fileName: "LimitQuiz_S2_Attempt.txt" }
+            }},
+            { id: 102, title: "Differential Project", description: "Final project on differentiation.", submissions: {
+                "student1@mail.edu": { content: "Completed 3/4 problems. Implicit differentiation was tricky.", grade: "B+", feedback: "Strong attempt. Problem 4 was incomplete. Focus on implicit differentiation next time.", fileName: "DiffProject_S1_Draft.pdf" }
+            }}
+        ],
+        2: [ // CS105
+            { id: 201, title: "Color Palette Exercise", description: "Create a complementary color palette.", submissions: {
+                "student1@mail.edu": { content: "Used CMYK colors effectively, ensuring high contrast.", grade: "A-", feedback: "Great color theory! Next time, try adding a justification for your palette choices.", fileName: "ColorPalette_S1.zip" },
+            }}
+        ]
+    };
+
+    // Course Materials
+    let courseMaterials = {
+        1: [ // MATH101
+            { id: 1, title: "Course Syllabus", fileName: "MATH101_Syllabus.pdf" },
+            { id: 2, title: "Lecture 1: Intro to Limits", fileName: "Lec1_Limits.pptx" },
+            { id: 4, title: "Derivative Rules Cheatsheet", fileName: "Deriv_Rules.pdf"}
+        ],
+        2: [ // CS105
+            { id: 3, title: "HTML Basics Video Tutorial", fileName: "HTML_Intro.mp4" }
+        ]
+    };
+
+    // ===== GRADE CALCULATION SYSTEM (Overall Performance) =====
+    const gradePoints = {
+        'A+': 4.0, 'A': 4.0, 'A-': 3.7,
+        'B+': 3.3, 'B': 3.0, 'B-': 2.7,
+        'C+': 2.3, 'C': 2.0, 'C-': 1.7,
+        'D+': 1.3, 'D': 1.0, 'D-': 0.7,
+        'F': 0.0,
+        '': 0.0 // Handle ungraded assignments gracefully
+    };
+
+    function getLetterGrade(gpa) {
+        if (gpa >= 3.85) return 'A+';
+        if (gpa >= 3.5) return 'A';
+        if (gpa >= 3.2) return 'A-';
+        if (gpa >= 2.85) return 'B+';
+        if (gpa >= 2.5) return 'B';
+        if (gpa >= 2.2) return 'B-';
+        if (gpa >= 1.85) return 'C+';
+        if (gpa >= 2.0) return 'C'; 
+        if (gpa >= 1.7) return 'C-';
+        if (gpa >= 1.3) return 'D+';
+        if (gpa >= 1.0) return 'D';
+        if (gpa >= 0.7) return 'D-';
+        return 'F';
+    }
+
+    function calculateOverallGrade(studentEmail) {
+        let totalPoints = 0;
+        let assignmentCount = 0;
+
+        for (const courseId in assignments) {
+            // Check if the student is enrolled in this course
+            const isEnrolled = enrollments[courseId]?.includes(studentEmail); 
+            if (!isEnrolled) continue;
+            
+            const courseAssignments = assignments[courseId];
+            
+            courseAssignments.forEach(assignment => {
+                const submission = assignment.submissions[studentEmail];
+                const grade = submission?.grade || '';
+                
+                // Only count submissions with a defined grade towards GPA
+                if (grade) {
+                    const points = gradePoints[grade] || 0.0;
+                    totalPoints += points;
+                    assignmentCount++;
+                }
+            });
+        }
+        
+        if (assignmentCount === 0) return { grade: 'N/A', gpa: 0 }; 
+
+        const averageGPA = totalPoints / assignmentCount;
+        return { grade: getLetterGrade(averageGPA), gpa: averageGPA.toFixed(2) };
+    }
+
+    // ===== MENU NAVIGATION & UTILITY =====
+    function switchTeacherView(view) {
+        currentTeacherView = view;
+        document.querySelectorAll('.teacher-view').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`teacher-view-${view}`).classList.remove('hidden');
+
+        document.querySelectorAll('#teacher-dashboard .nav-link').forEach(el => el.classList.remove('active'));
+        document.getElementById(`teacher-nav-${view}`).classList.add('active');
+
+        if (view === 'grading') {
+            renderGradingQueue();
+        } else if (view === 'courses') {
+            renderTeacherCourses();
+        }
+        lucide.createIcons();
+    }
+
+    function switchStudentView(view) {
+        currentStudentView = view;
+        document.querySelectorAll('.student-view').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`student-view-${view}`).classList.remove('hidden');
+
+        document.querySelectorAll('#student-dashboard .nav-link').forEach(el => el.classList.remove('active'));
+        document.getElementById(`student-nav-${view}`).classList.add('active');
+        
+        renderStudentView();
+        lucide.createIcons();
+    }
+
+    function switchDetailTab(tabName) {
+        document.querySelectorAll('#view-assignment-details-modal .tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('#view-assignment-details-modal .tab-button').forEach(el => el.classList.remove('active', 'border-blue-500', 'text-blue-500'));
+
+        document.getElementById(`content-${tabName}`).classList.remove('hidden');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        lucide.createIcons();
+    }
+
+    function toggleModal(id, show) {
+        const modal = document.getElementById(id);
+        modal.classList.toggle('hidden', !show);
+        modal.classList.toggle('flex', show);
+        if (show) lucide.createIcons();
+        
+        if (id === 'register-modal') document.getElementById('reg-message-box').style.display = 'none';
+        if (id === 'add-assignment-modal') document.getElementById("add-assignment-form").reset();
+        if (id === 'add-course-modal') document.getElementById("add-course-form").reset();
+        if (id === 'upload-material-form') document.getElementById("upload-material-form").reset();
+        // Updated modal cleanup:
+        if (id === 'view-assignment-details-modal') {
+             // Reset file display on close for the new modal
+             document.getElementById('details-current-file-display').textContent = 'No file selected.';
+             document.getElementById('details-sub-file').value = ''; // Clear file input
+             // Reset to Assignment tab on close
+             switchDetailTab('assignment');
+        }
+        if (id === 'view-roster-modal') {
+             // Clear list on close
+             document.getElementById('roster-list').innerHTML = '';
+        }
+    }
+    
+    function showNotification(message, type = 'info') {
+        const msgBox = document.getElementById("message-box");
+        msgBox.textContent = message;
+        msgBox.style.display = "block";
+        
+        let bgColor = type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
+        if (type === 'info') bgColor = 'bg-blue-100 text-blue-700';
+        
+        msgBox.className = `mt-6 text-center p-3 rounded-lg ${bgColor}`;
+        
+        setTimeout(() => msgBox.style.display = 'none', 5000);
+    }
+
+    function setRole(role) {
+        currentRole = role;
+        document.getElementById('form-title').textContent = `${role} Portal Sign In`;
+        document.getElementById('student-btn').classList.toggle('bg-blue-600', role === 'Student');
+        document.getElementById('student-btn').classList.toggle('text-white', role === 'Student');
+        document.getElementById('student-btn').classList.toggle('text-gray-700', role === 'Teacher');
+        document.getElementById('student-btn').classList.toggle('shadow-md', role === 'Student');
+        document.getElementById('student-btn').classList.toggle('hover:bg-gray-200', role === 'Teacher');
+
+        document.getElementById('teacher-btn').classList.toggle('bg-blue-600', role === 'Teacher');
+        document.getElementById('teacher-btn').classList.toggle('text-white', role === 'Teacher');
+        document.getElementById('teacher-btn').classList.toggle('text-gray-700', role === 'Student');
+        document.getElementById('teacher-btn').classList.toggle('shadow-md', role === 'Teacher');
+        document.getElementById('teacher-btn').classList.toggle('hover:bg-gray-200', role === 'Student');
+    }
+
+    // ===== AUTHENTICATION & ROUTING =====
+
+    function handleLogin(event) {
+        event.preventDefault();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value.trim();
+
+        if (users[email] && users[email].password === password && users[email].role === currentRole) {
+            currentUser = { email: email, role: currentRole };
+            document.getElementById('login-page').style.display = 'none';
+            if (currentRole === 'Teacher') {
+                document.getElementById('teacher-dashboard').style.display = 'flex';
+                document.getElementById('teacher-name').textContent = `Logged in as: ${email}`;
+                switchTeacherView('courses');
+            } else {
+                document.getElementById('student-dashboard').style.display = 'flex';
+                document.getElementById('student-name').textContent = `Logged in as: ${email}`;
+                switchStudentView('enrollment');
+            }
+            showNotification(`Welcome back, ${email}!`, 'success');
+        } else {
+            showNotification("Login failed. Check your email, password, and role.", 'error');
+        }
+    }
+
+    function handleRegistration(event) {
+        event.preventDefault();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value.trim();
+        const role = document.getElementById('reg-role').value;
+        const msgBox = document.getElementById('reg-message-box');
+
+        if (users[email]) {
+            msgBox.textContent = "This email is already registered.";
+            msgBox.style.display = 'block';
+            return;
+        }
+
+        users[email] = { password, role };
+        msgBox.textContent = "";
+        msgBox.style.display = 'none';
+        toggleModal('register-modal', false);
+        showNotification("Registration successful! You can now log in.", 'success');
+    }
+
+    function logout() {
+        currentUser = null;
+        document.getElementById('teacher-dashboard').style.display = 'none';
+        document.getElementById('student-dashboard').style.display = 'none';
+        document.getElementById('login-page').style.display = 'flex';
+        document.getElementById('login-form').reset();
+        showNotification("You have been logged out.", 'info');
+    }
+
+    // Utility function to get course object
+    function getCourseById(id) {
+        return courses.find(c => c.id === parseInt(id));
+    }
+
+    // ===== COURSE MANAGEMENT (Teacher) =====
+
+    // NEW: Function to capture and save duration
+    function addCourse(event) {
+        event.preventDefault();
+        const title = document.getElementById("course-title").value.trim();
+        const code = document.getElementById("course-code").value.trim();
+        const duration = document.getElementById("course-duration").value.trim(); // <-- NEW FIELD
+        const description = document.getElementById("course-description").value.trim();
+
+        const newCourse = {
+            id: courses.length + 1,
+            title: title,
+            code: code,
+            duration: duration, // <-- Save new field
+            description: description,
+            teacherEmail: currentUser.email
+        };
+
+        courses.push(newCourse);
+        assignments[newCourse.id] = []; // Initialize empty assignments list
+        courseMaterials[newCourse.id] = []; // Initialize empty materials list
+        document.getElementById("add-course-form").reset();
+        toggleModal('add-course-modal', false);
+        renderTeacherCourses();
+        showNotification(`Course ${code} - ${title} created successfully!`, 'success');
+    }
+
+    // Renders a single course card (Used for both Teacher and Student)
+    function renderCourseCard(course, role, enrollmentStatus = null) {
+        const isEnrolled = enrollmentStatus === 'enrolled';
+        
+        let buttonHtml = '';
+        let statusTag = '';
+
+        const teacherInfo = courses.find(c => c.id === course.id).teacherEmail === currentUser.email ? 'Your Course' : '';
+        
+        if (role === 'Teacher') {
+            const assignmentCount = assignments[course.id]?.length || 0;
+            const submissionsNeedingGrade = getSubmissionsForCourse(course.id).filter(s => !s.grade).length;
+
+            // Updated button structure to include View Roster button
+            buttonHtml = `
+                <div class="grid grid-cols-3 gap-2 mt-4">
+                    <button onclick="openAddAssignmentModal(${course.id})" class="col-span-1 bg-indigo-500 text-white text-sm py-2 rounded-lg hover:bg-indigo-600 transition" title="Add Assignment">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="openManageMaterialsModal(${course.id})" class="col-span-1 bg-gray-400 text-white text-sm py-2 rounded-lg hover:bg-gray-500 transition" title="Manage Materials">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="viewEnrolledStudents(${course.id})" class="col-span-1 bg-purple-600 text-white text-sm py-2 rounded-lg hover:bg-purple-700 transition" title="View Roster">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <button onclick="viewAssignmentSubmissions(${course.id})" class="mt-2 w-full text-sm py-2 rounded-lg ${submissionsNeedingGrade > 0 ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                    View Assignments (${assignmentCount} Total)
+                </button>
+            `;
+            statusTag = submissionsNeedingGrade > 0 
+                ? `<span class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full absolute top-3 right-3">${submissionsNeedingGrade} Pending Grade</span>` 
+                : `<span class="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full absolute top-3 right-3">Active</span>`;
+        
+        } else if (role === 'Student') {
+            if (enrollmentStatus === 'available') {
+                buttonHtml = `<button onclick="enrollInCourse(${course.id})" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-semibold mt-4">Enroll Now</button>`;
+                statusTag = `<span class="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-1 rounded-full absolute top-3 right-3">Available</span>`;
+            } else if (enrollmentStatus === 'enrolled') {
+                buttonHtml = `
+                    <button onclick="viewAssignments(${course.id})" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-semibold mt-4">
+                        <i data-lucide="list-checks" class="w-4 h-4 inline-block mr-1"></i> View Assignments
+                    </button>
+                    <button onclick="openViewMaterialsModal(${course.id}, '${course.title}')" class="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 font-semibold mt-2">
+                        <i data-lucide="folder-open" class="w-4 h-4 inline-block mr-1"></i> Course Materials
+                    </button>
+                `;
+                const courseGrade = calculateCourseGrade(course.id, currentUser.email);
+                statusTag = `<span class="bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full absolute top-3 right-3">Grade: ${courseGrade}</span>`;
+            }
+        }
+        
+        // NEW: Duration display
+        const durationHtml = course.duration 
+            ? `<p class="text-sm text-gray-500 flex items-center mt-2"><i data-lucide="clock" class="w-4 h-4 mr-1 text-indigo-400"></i>${course.duration}</p>` 
+            : '';
+
+        return `
+            <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition relative border border-gray-100">
+                ${statusTag}
+                <h3 class="text-xl font-bold text-gray-800">${course.title} (${course.code})</h3>
+                ${durationHtml}
+                <p class="text-sm text-gray-600 mt-2">${course.description}</p>
+                ${buttonHtml}
+            </div>
+        `;
+    }
+
+    function renderTeacherCourses() {
+        const container = document.getElementById('course-list-container');
+        container.innerHTML = '';
+        
+        const teacherCourses = courses.filter(c => c.teacherEmail === currentUser.email);
+        document.getElementById('course-count').textContent = teacherCourses.length;
+
+        if (teacherCourses.length === 0) {
+            document.getElementById('empty-state').classList.remove('hidden');
+        } else {
+            document.getElementById('empty-state').classList.add('hidden');
+            teacherCourses.forEach(course => {
+                container.innerHTML += renderCourseCard(course, 'Teacher');
+            });
+        }
+        lucide.createIcons();
+    }
+    
+    // ** NEW FUNCTION: View Enrolled Students **
+    function viewEnrolledStudents(courseId) {
+        const course = getCourseById(courseId);
+        const enrolledEmails = enrollments[courseId] || [];
+        
+        document.getElementById('roster-modal-title').textContent = `Roster for ${course.code}: ${course.title}`;
+        document.getElementById('roster-count').textContent = enrolledEmails.length;
+        
+        const listContainer = document.getElementById('roster-list');
+        listContainer.innerHTML = '';
+        
+        if (enrolledEmails.length === 0) {
+            listContainer.innerHTML = '<p class="text-gray-500 p-3 bg-white rounded-lg border">No students are currently enrolled in this course.</p>';
+        } else {
+            enrolledEmails.forEach((email, index) => {
+                listContainer.innerHTML += `
+                    <div class="p-3 bg-white border-b last:border-b-0 rounded-lg flex items-center space-x-3">
+                        <span class="font-bold text-gray-500">${index + 1}.</span>
+                        <i data-lucide="user" class="w-5 h-5 text-purple-600"></i>
+                        <p class="text-gray-700 font-medium">${email}</p>
+                    </div>
+                `;
+            });
+        }
+
+        toggleModal('view-roster-modal', true);
+        lucide.createIcons();
+    }
+
+    // ===== ASSIGNMENT & SUBMISSION (Teacher) =====
+
+    function openAddAssignmentModal(courseId) {
+        document.getElementById('assign-course-id').value = courseId;
+        toggleModal('add-assignment-modal', true);
+    }
+
+    function addAssignment(event) {
+        event.preventDefault();
+        const courseId = parseInt(document.getElementById('assign-course-id').value);
+        const title = document.getElementById('assignment-title').value.trim();
+        const description = document.getElementById('assignment-desc').value.trim();
+
+        const newAssignment = {
+            id: assignments[courseId].length + 1,
+            title: title,
+            description: description,
+            submissions: {}
+        };
+
+        assignments[courseId].push(newAssignment);
+        toggleModal('add-assignment-modal', false);
+        showNotification(`Assignment "${title}" published for ${getCourseById(courseId).code}.`, 'success');
+    }
+
+    function viewAssignmentSubmissions(courseId) {
+        const assignmentList = assignments[courseId] || [];
+        const course = getCourseById(courseId);
+        document.getElementById('submission-title').textContent = `Assignments for ${course.code}`;
+        
+        const listContainer = document.getElementById('submissions-list');
+        listContainer.innerHTML = '';
+
+        if (assignmentList.length === 0) {
+            listContainer.innerHTML = '<p class="text-gray-500 p-4 bg-gray-50 rounded-lg">No assignments published for this course yet.</p>';
+        } else {
+            assignmentList.forEach(assignment => {
+                const totalSubmissions = Object.keys(assignment.submissions).length;
+                const needingGrade = Object.values(assignment.submissions).filter(s => !s.grade).length;
+                
+                listContainer.innerHTML += `
+                    <div class="p-4 border rounded-lg shadow-sm bg-white">
+                        <h4 class="text-lg font-bold text-gray-800">${assignment.title}</h4>
+                        <p class="text-sm text-gray-500 mb-2">${assignment.description}</p>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-600">${totalSubmissions} Submissions (${needingGrade} pending)</span>
+                            <button onclick="showSubmissionsList(${courseId}, ${assignment.id}, '${assignment.title}')" class="text-blue-600 hover:text-blue-700 font-semibold">View Details</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        toggleModal('view-submissions-modal', true);
+        lucide.createIcons();
+    }
+    
+    function showSubmissionsList(courseId, assignmentId, assignmentTitle) {
+        const assignment = assignments[courseId].find(a => a.id === assignmentId);
+        
+        const listContainer = document.getElementById('submissions-list');
+        listContainer.innerHTML = `<h4 class="text-xl font-bold mb-4">${assignmentTitle} Submissions:</h4>`;
+        
+        if (Object.keys(assignment.submissions).length === 0) {
+            listContainer.innerHTML += '<p class="text-gray-500 p-4 bg-gray-50 rounded-lg">No submissions yet.</p>';
+            lucide.createIcons();
+            return;
+        }
+
+        Object.entries(assignment.submissions).forEach(([studentEmail, submission]) => {
+            const gradeStatus = submission.grade ? `Graded: ${submission.grade}` : 'Needs Grading';
+            const statusClass = submission.grade ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+
+            listContainer.innerHTML += `
+                <div class="p-4 border rounded-lg ${statusClass}">
+                    <p class="font-semibold">${studentEmail}</p>
+                    <p class="text-sm text-gray-700">File: ${submission.fileName || 'N/A'}</p>
+                    <p class="text-sm font-bold mt-1">${gradeStatus}</p>
+                    <button onclick="openGradeModal(${courseId}, ${assignmentId}, '${studentEmail}')" class="mt-2 text-blue-600 hover:text-blue-700 text-sm font-semibold">
+                        ${submission.grade ? 'View/Edit Grade' : 'Grade Now'}
+                    </button>
+                </div>
+            `;
+        });
+        lucide.createIcons();
+    }
+
+    function getSubmissionsForCourse(courseId) {
+        const courseAssignments = assignments[courseId] || [];
+        let allSubmissions = [];
+        courseAssignments.forEach(assignment => {
+            Object.entries(assignment.submissions).forEach(([studentEmail, submission]) => {
+                allSubmissions.push({ 
+                    ...submission,
+                    courseId: courseId, 
+                    assignmentId: assignment.id,
+                    assignmentTitle: assignment.title,
+                    studentEmail: studentEmail
+                });
+            });
+        });
+        return allSubmissions;
+    }
+
+    function renderGradingQueue() {
+        const container = document.getElementById('grading-queue-container');
+        container.innerHTML = '';
+        const teacherCourses = courses.filter(c => c.teacherEmail === currentUser.email).map(c => c.id);
+        let pendingSubmissions = [];
+
+        teacherCourses.forEach(courseId => {
+            const coursePending = getSubmissionsForCourse(courseId).filter(s => !s.grade);
+            pendingSubmissions = pendingSubmissions.concat(coursePending);
+        });
+
+        if (pendingSubmissions.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-6 bg-white rounded-xl shadow-md">🎉 All caught up! No assignments are currently pending grading.</p>';
+        } else {
+            pendingSubmissions.forEach(submission => {
+                const course = getCourseById(submission.courseId);
+                container.innerHTML += `
+                    <div class="p-4 bg-white rounded-xl shadow-md border border-yellow-300">
+                        <p class="text-sm font-bold text-gray-700">${course.code}: ${submission.assignmentTitle}</p>
+                        <p class="text-lg font-semibold text-red-600">Needs Grading: ${submission.studentEmail}</p>
+                        <p class="text-sm text-gray-500">Submitted File: ${submission.fileName || 'N/A'}</p>
+                        <button onclick="openGradeModal(${submission.courseId}, ${submission.assignmentId}, '${submission.studentEmail}')" class="mt-2 bg-red-500 text-white text-sm py-1 px-3 rounded-lg hover:bg-red-600 transition">
+                            Grade Submission
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        lucide.createIcons();
+    }
+
+    function openGradeModal(courseId, assignmentId, studentEmail) {
+        const course = getCourseById(courseId);
+        const assignment = assignments[courseId].find(a => a.id === assignmentId);
+        const submission = assignment.submissions[studentEmail];
+
+        document.getElementById('grade-course-id').value = courseId;
+        document.getElementById('grade-assignment-id').value = assignmentId;
+        document.getElementById('grade-student-email-input').value = studentEmail;
+        
+        document.getElementById('grade-student-email').textContent = studentEmail;
+        document.getElementById('grade-assignment-title').textContent = assignment.title;
+        document.getElementById('grade-submitted-file').textContent = submission.fileName || 'N/A';
+        document.getElementById('grade-submission-content').textContent = submission.content;
+        
+        document.getElementById('grade-select').value = submission.grade || '';
+        document.getElementById('grade-feedback').value = submission.feedback || '';
+
+        toggleModal('view-submissions-modal', false); // Close submissions modal
+        toggleModal('grade-submission-modal', true); // Open grade modal
+    }
+
+    function handleGradeSubmission(event) {
+        event.preventDefault();
+        const courseId = parseInt(document.getElementById('grade-course-id').value);
+        const assignmentId = parseInt(document.getElementById('grade-assignment-id').value);
+        const studentEmail = document.getElementById('grade-student-email-input').value;
+        const grade = document.getElementById('grade-select').value;
+        const feedback = document.getElementById('grade-feedback').value.trim();
+
+        const assignment = assignments[courseId].find(a => a.id === assignmentId);
+        if (assignment && assignment.submissions[studentEmail]) {
+            assignment.submissions[studentEmail].grade = grade;
+            assignment.submissions[studentEmail].feedback = feedback;
+            
+            toggleModal('grade-submission-modal', false);
+            showNotification(`Grade ${grade} saved for ${studentEmail}'s submission.`, 'success');
+            
+            // Re-render the grading queue or teacher courses view
+            if (currentTeacherView === 'grading') {
+                renderGradingQueue();
+            } else {
+                 renderTeacherCourses();
+            }
+        }
+    }
+
+    // ===== COURSE MATERIALS MANAGEMENT (Teacher & Student) =====
+
+    function openManageMaterialsModal(courseId) {
+        const course = getCourseById(courseId);
+        document.getElementById('material-course-id').value = courseId;
+        document.getElementById('materials-modal-title').textContent = `Manage Materials for ${course.code}`;
+        renderTeacherMaterials(courseId);
+        toggleModal('manage-materials-modal', true);
+    }
+
+    function handleMaterialUpload(event) {
+        event.preventDefault();
+        const courseId = parseInt(document.getElementById('material-course-id').value);
+        const title = document.getElementById('material-title').value.trim();
+        const fileInput = document.getElementById('material-file');
+        const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : title + ".pdf"; // Mock file name
+
+        if (!courseMaterials[courseId]) {
+            courseMaterials[courseId] = [];
+        }
+
+        courseMaterials[courseId].push({
+            id: Date.now(),
+            title: title,
+            fileName: fileName
+        });
+
+        document.getElementById("upload-material-form").reset();
+        renderTeacherMaterials(courseId);
+        showNotification(`Material "${title}" uploaded to ${getCourseById(courseId).code}.`, 'success');
+    }
+
+    function renderTeacherMaterials(courseId) {
+        const container = document.getElementById('materials-list-teacher');
+        container.innerHTML = '';
+        const materials = courseMaterials[courseId] || [];
+
+        if (materials.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-4 bg-white rounded-lg border">No materials uploaded yet.</p>';
+        } else {
+            materials.forEach(material => {
+                container.innerHTML += `
+                    <div class="flex justify-between items-center p-3 bg-white border rounded-lg">
+                        <p class="font-semibold text-gray-700">
+                            <i data-lucide="file-text" class="w-4 h-4 inline-block mr-2 text-indigo-500"></i>
+                            ${material.title} (<span class="text-xs text-gray-500">${material.fileName}</span>)
+                        </p>
+                        <button onclick="deleteMaterial(${courseId}, ${material.id})" class="text-red-500 hover:text-red-700">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        lucide.createIcons();
+    }
+
+    function deleteMaterial(courseId, materialId) {
+        courseMaterials[courseId] = courseMaterials[courseId].filter(m => m.id !== materialId);
+        renderTeacherMaterials(courseId);
+        showNotification("Material deleted successfully.", 'info');
+    }
+
+    function openViewMaterialsModal(courseId, courseTitle) {
+        const materials = courseMaterials[courseId] || [];
+        const container = document.getElementById('materials-list-student');
+        document.getElementById('view-materials-title').textContent = `${courseTitle} Materials`;
+        container.innerHTML = '';
+        
+        if (materials.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-4 bg-gray-50 rounded-lg border">No materials have been uploaded for this course yet.</p>';
+        } else {
+            materials.forEach(material => {
+                container.innerHTML += `
+                    <div class="flex justify-between items-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="font-semibold text-gray-700">
+                            <i data-lucide="download" class="w-4 h-4 inline-block mr-2 text-blue-500"></i>
+                            ${material.title} (<span class="text-xs text-gray-500">${material.fileName}</span>)
+                        </p>
+                        <a href="#" class="text-blue-600 hover:text-blue-700 text-sm font-semibold">Download (Mock)</a>
+                    </div>
+                `;
+            });
+        }
+        toggleModal('view-materials-modal', true);
+        lucide.createIcons();
+    }
+
+
+    // ===== STUDENT VIEWS (Enrollment, Assignments) =====
+
+    function renderStudentView() {
+        if (currentStudentView === 'enrollment') {
+            renderEnrollment();
+        } else if (currentStudentView === 'assignments') {
+            renderStudentAssignments();
+        }
+    }
+
+    function renderEnrollment() {
+        const studentEmail = currentUser.email;
+        const enrolledContainer = document.getElementById('enrolled-courses');
+        const availableContainer = document.getElementById('available-courses');
+        enrolledContainer.innerHTML = '';
+        availableContainer.innerHTML = '';
+
+        const enrolledCourseIds = Object.entries(enrollments)
+            .filter(([id, emails]) => emails.includes(studentEmail))
+            .map(([id]) => parseInt(id));
+
+        courses.forEach(course => {
+            if (enrolledCourseIds.includes(course.id)) {
+                enrolledContainer.innerHTML += renderCourseCard(course, 'Student', 'enrolled');
+            } else {
+                availableContainer.innerHTML += renderCourseCard(course, 'Student', 'available');
+            }
+        });
+        
+        if (enrolledCourseIds.length === 0) {
+            enrolledContainer.innerHTML = '<p class="text-gray-500 p-4 bg-white rounded-xl shadow-md col-span-full">You are not currently enrolled in any courses.</p>';
+        }
+        
+        if (availableContainer.innerHTML === '') {
+             availableContainer.innerHTML = '<p class="text-gray-500 p-4 bg-white rounded-xl shadow-md col-span-full">No additional courses available for enrollment.</p>';
+        }
+
+        lucide.createIcons();
+    }
+
+    function enrollInCourse(courseId) {
+        const studentEmail = currentUser.email;
+        if (!enrollments[courseId]) {
+            enrollments[courseId] = [];
+        }
+        if (!enrollments[courseId].includes(studentEmail)) {
+            enrollments[courseId].push(studentEmail);
+            showNotification(`Successfully enrolled in ${getCourseById(courseId).code}.`, 'success');
+            renderEnrollment();
+        }
+    }
+
+    function getStudentAssignments() {
+        const studentEmail = currentUser.email;
+        let studentAssignments = [];
+        
+        const enrolledCourseIds = Object.entries(enrollments)
+            .filter(([id, emails]) => emails.includes(studentEmail))
+            .map(([id]) => parseInt(id));
+
+        enrolledCourseIds.forEach(courseId => {
+            const course = getCourseById(courseId);
+            const courseAssignments = assignments[courseId] || [];
+            
+            courseAssignments.forEach(assignment => {
+                const submission = assignment.submissions[studentEmail];
+                const status = submission ? (submission.grade ? 'Graded' : 'Submitted') : 'Pending';
+                
+                studentAssignments.push({
+                    courseId: courseId,
+                    courseCode: course.code,
+                    assignment: assignment,
+                    submission: submission,
+                    status: status
+                });
+            });
+        });
+        return studentAssignments;
+    }
+
+    function renderStudentAssignments() {
+        const container = document.getElementById('student-assignments');
+        container.innerHTML = '';
+        
+        const overall = calculateOverallGrade(currentUser.email);
+        document.getElementById('overall-grade-card').innerHTML = `
+            <div class="p-6 bg-white rounded-xl shadow-lg border-t-4 border-blue-500">
+                <p class="text-sm font-medium text-gray-500">Overall GPA</p>
+                <p class="text-4xl font-extrabold text-blue-600 mt-1">${overall.gpa}</p>
+                <p class="text-lg font-semibold text-gray-700">Estimated Grade: ${overall.grade}</p>
+            </div>
+        `;
+
+        const studentAssignments = getStudentAssignments();
+        
+        if (studentAssignments.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-6 bg-white rounded-xl shadow-md col-span-full">No assignments found in your enrolled courses.</p>';
+        } else {
+            studentAssignments.forEach(item => {
+                const statusColor = item.status === 'Graded' ? 'bg-green-100 text-green-700' : 
+                                    (item.status === 'Submitted' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700');
+                
+                container.innerHTML += `
+                    <div class="p-5 bg-white rounded-xl shadow-md border-l-4 border-blue-500">
+                        <p class="text-xs font-medium text-blue-600">${item.courseCode}</p>
+                        <h4 class="text-xl font-bold text-gray-800 my-1">${item.assignment.title}</h4>
+                        <div class="flex items-center justify-between mt-3">
+                            <span class="text-sm font-semibold px-3 py-1 rounded-full ${statusColor}">${item.status}</span>
+                            <span class="text-2xl font-extrabold ${item.status === 'Graded' ? 'text-green-600' : 'text-gray-400'}">
+                                ${item.submission?.grade || '--'}
+                            </span>
+                        </div>
+                        <button onclick="viewAssignmentDetails(${item.courseId}, ${item.assignment.id})" class="mt-4 w-full bg-blue-100 text-blue-600 py-2 rounded-lg hover:bg-blue-200 text-sm font-semibold">
+                            View Details / Submit
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        lucide.createIcons();
+    }
+
+    function calculateCourseGrade(courseId, studentEmail) {
+        const courseAssignments = assignments[courseId] || [];
+        let totalPoints = 0;
+        let assignmentCount = 0;
+
+        courseAssignments.forEach(assignment => {
+            const submission = assignment.submissions[studentEmail];
+            const grade = submission?.grade || '';
+            if (grade) {
+                totalPoints += gradePoints[grade] || 0.0;
+                assignmentCount++;
+            }
+        });
+
+        if (assignmentCount === 0) return 'N/A';
+        const averageGPA = totalPoints / assignmentCount;
+        return getLetterGrade(averageGPA);
+    }
+
+    function viewAssignmentDetails(courseId, assignmentId) {
+        const studentEmail = currentUser.email;
+        const course = getCourseById(courseId);
+        const assignment = assignments[courseId].find(a => a.id === assignmentId);
+        const submission = assignment.submissions[studentEmail];
+
+        // Set up Assignment tab
+        document.getElementById('details-assign-title').textContent = assignment.title;
+        document.getElementById('details-course-info').textContent = `${course.code} - ${course.title}`;
+        document.getElementById('details-assign-desc').textContent = assignment.description;
+        document.getElementById('details-sub-course-id').value = courseId;
+        document.getElementById('details-sub-assignment-id').value = assignmentId;
+
+        // Populate submission form/section
+        const subContentEl = document.getElementById('details-sub-content');
+        const fileDisplayEl = document.getElementById('details-current-file-display');
+        const fileStorageEl = document.getElementById('details-sub-file-name-storage');
+        const buttonTextEl = document.getElementById('details-sub-button-text');
+        
+        let gradeSectionHtml = '<p class="text-gray-500 font-semibold">Status: <span class="text-red-500">Pending Submission</span></p>';
+
+        if (submission) {
+            subContentEl.value = submission.content;
+            fileDisplayEl.textContent = `Current File: ${submission.fileName || 'N/A'}`;
+            fileStorageEl.value = submission.fileName || '';
+            buttonTextEl.textContent = 'Resubmit Assignment';
+            
+            if (submission.grade) {
+                gradeSectionHtml = `
+                    <h4 class="text-xl font-semibold text-gray-700 mb-2">Your Grade: <span class="text-green-600">${submission.grade}</span></h4>
+                    <p class="text-sm text-gray-600 font-semibold mb-1">Feedback from Instructor:</p>
+                    <p class="text-sm text-gray-500 whitespace-pre-wrap p-3 bg-white border rounded-lg">${submission.feedback || 'No feedback provided.'}</p>
+                `;
+            } else {
+                gradeSectionHtml = `
+                    <h4 class="text-xl font-semibold text-gray-700 mb-2">Status: <span class="text-yellow-600">Submitted (Awaiting Grade)</span></h4>
+                    <p class="text-sm text-gray-500">Your work was submitted. The instructor will grade it soon.</p>
+                `;
+            }
+
+        } else {
+            subContentEl.value = '';
+            fileDisplayEl.textContent = 'No file selected.';
+            fileStorageEl.value = '';
+            buttonTextEl.textContent = 'Submit Assignment';
+        }
+        document.getElementById('details-grade-section').innerHTML = gradeSectionHtml;
+
+
+        // Set up Materials tab (reusing teacher logic)
+        renderStudentAssignmentMaterials(courseId);
+
+        toggleModal('view-assignment-details-modal', true);
+        lucide.createIcons();
+    }
+
+    function renderStudentAssignmentMaterials(courseId) {
+        const materials = courseMaterials[courseId] || [];
+        const container = document.getElementById('details-materials-list');
+        container.innerHTML = '';
+        
+        document.getElementById('details-materials-empty').classList.toggle('hidden', materials.length > 0);
+        
+        materials.forEach(material => {
+            container.innerHTML += `
+                <div class="flex justify-between items-center p-3 bg-gray-50 border rounded-lg">
+                    <p class="font-semibold text-gray-700">
+                        <i data-lucide="download" class="w-4 h-4 inline-block mr-2 text-indigo-500"></i>
+                        ${material.title} (<span class="text-xs text-gray-500">${material.fileName}</span>)
+                    </p>
+                    <a href="#" class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold">Download (Mock)</a>
+                </div>
+            `;
+        });
+        lucide.createIcons();
+    }
+
+    function updateSubmissionFileName(fileInput, displayId, storageId) {
+        const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '';
+        document.getElementById(displayId).textContent = fileName || 'No file selected.';
+        document.getElementById(storageId).value = fileName; // Store in hidden input
+    }
+
+
+    function handleSubmission(event) {
+        event.preventDefault();
+        const courseId = parseInt(document.getElementById('details-sub-course-id').value);
+        const assignmentId = parseInt(document.getElementById('details-sub-assignment-id').value);
+        const content = document.getElementById('details-sub-content').value.trim();
+        const fileName = document.getElementById('details-sub-file-name-storage').value.trim();
+
+        const studentEmail = currentUser.email;
+        const assignment = assignments[courseId].find(a => a.id === assignmentId);
+
+        // Check if there's an existing submission to preserve grade/feedback
+        const existingSubmission = assignment.submissions[studentEmail] || {};
+
+        assignment.submissions[studentEmail] = {
+            content: content,
+            fileName: fileName,
+            grade: existingSubmission.grade, // Preserve existing grade
+            feedback: existingSubmission.feedback // Preserve existing feedback
+        };
+
+        toggleModal('view-assignment-details-modal', false);
+        showNotification(`Submission for ${assignment.title} saved/updated!`, 'success');
+        
+        // Re-render the assignment list to update status
+        renderStudentAssignments(); 
+    }
+
+    // ===== INITIALIZATION =====
+    window.onload = function() {
+        // Initial setup for default role
+        setRole(currentRole); 
+        // Create icons for the login page
+        lucide.createIcons(); 
+        
+        // Mock login for quick testing:
+        // currentUser = users["teacher1@mail.edu"];
+        // currentRole = currentUser.role;
+        // handleLogin({ preventDefault: () => {} });
+    };
+
+</script>
+</body>
+</html>
